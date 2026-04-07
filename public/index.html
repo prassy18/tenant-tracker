@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tenant Logger">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <title>Tenant Logger</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); min-height: 100vh; }
+        [x-cloak] { display: none !important; }
+        .status-occupied { background: #059669; }
+        .status-vacant { background: #d97706; }
+        .status-maintenance { background: #6b7280; }
+        .alert-expired { border-left: 4px solid #dc2626; background: #fef2f2; }
+        .alert-urgent { border-left: 4px solid #f59e0b; background: #fffbeb; }
+        .alert-info { border-left: 4px solid #3b82f6; background: #eff6ff; }
+        .tab-active { background: #2563eb; color: white; }
+        .fade-in { animation: fadeIn 0.2s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        *, *::before, *::after { box-sizing: border-box !important; }
+        /* Prevent zoom on input focus (mobile) + consistent sizing */
+        input, select, textarea {
+            font-size: 16px !important;
+            box-sizing: border-box !important;
+        }
+        /* Flatpickr: style the visible alt-input to match form fields */
+        .flatpickr-input, input.flatpickr-input[readonly] {
+            cursor: pointer;
+            background: white;
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 0.75rem center;
+            padding-right: 2rem !important;
+        }
+        input[type="checkbox"] { width: auto !important; min-width: auto !important; }
+        .max-w-lg { overflow-x: hidden; }
+    </style>
+</head>
+<body class="text-gray-800" x-data="app()" x-init="init()" x-cloak>
+
+    <!-- Login Overlay -->
+    <div x-show="!authenticated" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-80 text-center">
+            <div class="text-5xl mb-4">🏠</div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Tenant Logger</h1>
+            <p class="text-gray-500 mb-6">Enter PIN to continue</p>
+            <input type="password" inputmode="numeric" x-model="pin" @keyup.enter="login()"
+                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-center text-2xl tracking-widest focus:border-blue-500 focus:outline-none"
+                   placeholder="••••••••••" maxlength="10">
+            <button @click="login()" class="w-full mt-4 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition">
+                Login
+            </button>
+            <p x-show="loginError" x-text="loginError" class="mt-3 text-red-500 text-sm"></p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div x-show="authenticated" class="max-w-lg mx-auto pb-8">
+
+        <!-- Header -->
+        <div class="bg-blue-600 text-white px-4 py-5 rounded-b-2xl shadow-lg mb-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-xl font-bold">Tenant Logger</h1>
+                    <p class="text-blue-200 text-sm">Logged in as <span class="font-medium text-white" x-text="currentUser"></span></p>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button @click="navigateTo('settings')" class="p-2 hover:bg-blue-700 rounded-lg transition" title="Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </button>
+                    <button @click="logout()" class="p-2 hover:bg-blue-700 rounded-lg transition" title="Logout">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Breadcrumb Navigation -->
+        <div x-show="view !== 'dashboard' && view !== 'settings'" class="px-4 mb-3">
+            <div class="bg-white bg-opacity-15 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm flex-wrap shadow-sm backdrop-blur">
+                <span @click="navigateTo('dashboard')" class="cursor-pointer text-blue-300 hover:text-white font-semibold transition flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"/></svg>
+                    Home
+                </span>
+                <template x-if="currentProperty">
+                    <span class="flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        <span @click="openProperty(currentProperty.id)" class="cursor-pointer font-semibold transition" :class="currentTenant ? 'text-blue-300 hover:text-white' : 'text-white'" x-text="currentProperty.name"></span>
+                    </span>
+                </template>
+                <template x-if="currentTenant">
+                    <span class="flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        <span class="text-white font-semibold" x-text="currentTenant.name"></span>
+                    </span>
+                </template>
+            </div>
+        </div>
+
+        <!-- ==================== DASHBOARD VIEW ==================== -->
+        <div x-show="view === 'dashboard'" class="px-4 fade-in">
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-white rounded-xl p-3 text-center shadow">
+                    <div class="text-2xl font-bold text-blue-600" x-text="properties.length"></div>
+                    <div class="text-xs text-gray-500">Properties</div>
+                </div>
+                <div class="bg-white rounded-xl p-3 text-center shadow">
+                    <div class="text-2xl font-bold text-green-600" x-text="properties.filter(p => p.status === 'occupied').length"></div>
+                    <div class="text-xs text-gray-500">Occupied</div>
+                </div>
+                <div class="bg-white rounded-xl p-3 text-center shadow">
+                    <div class="text-2xl font-bold text-yellow-600" x-text="properties.filter(p => p.status !== 'occupied').length"></div>
+                    <div class="text-xs text-gray-500">Vacant</div>
+                </div>
+            </div>
+
+            <!-- Monthly Income -->
+            <div class="bg-white rounded-xl p-4 shadow mb-4">
+                <div class="text-sm text-gray-500">Total Monthly Rent</div>
+                <div class="text-2xl font-bold text-green-600" x-text="'₹' + getTotalMonthlyRent().toLocaleString('en-IN')"></div>
+            </div>
+
+            <!-- Alerts -->
+            <template x-if="getAlerts().length > 0">
+                <div class="mb-4 space-y-2">
+                    <h3 class="text-white font-semibold text-sm uppercase tracking-wide">Alerts</h3>
+                    <template x-for="alert in getAlerts()" :key="alert.id">
+                        <div :class="alert.class" class="rounded-lg p-3 text-sm">
+                            <span x-text="alert.message"></span>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+            <!-- Property Cards -->
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-white font-semibold text-sm uppercase tracking-wide">Properties</h3>
+                <button @click="editingId = null; form = { type: 'Apartment', status: 'vacant' }; navigateTo('add-property')" class="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">+ Add</button>
+            </div>
+
+            <template x-if="properties.length === 0">
+                <div class="bg-white bg-opacity-10 rounded-xl p-8 text-center">
+                    <div class="text-4xl mb-3">🏗️</div>
+                    <p class="text-gray-300">No properties yet.</p>
+                    <p class="text-gray-400 text-sm">Tap "+ Add" to add your first property.</p>
+                </div>
+            </template>
+
+            <div class="space-y-3">
+                <template x-for="prop in properties" :key="prop.id">
+                    <div @click="openProperty(prop.id)" class="bg-white rounded-xl p-4 shadow cursor-pointer hover:shadow-lg transition">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <h4 class="font-bold text-gray-800" x-text="prop.name"></h4>
+                                <p class="text-sm text-gray-500" x-text="prop.address"></p>
+                            </div>
+                            <span :class="'status-' + prop.status" class="text-white text-xs px-2 py-1 rounded-full font-medium capitalize" x-text="prop.status"></span>
+                        </div>
+                        <div class="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                            <span x-text="getPropertyTenantCount(prop.id) + ' tenant(s)'"></span>
+                            <span x-text="getActiveRent(prop.id) ? '₹' + getActiveRent(prop.id).toLocaleString('en-IN') + '/mo' : 'No active lease'"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- ==================== PROPERTY DETAIL VIEW ==================== -->
+        <div x-show="view === 'property-detail'" class="px-4 fade-in">
+            <template x-if="currentProperty">
+                <div>
+                    <!-- Property Header -->
+                    <div class="bg-white rounded-xl p-4 shadow mb-4">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h2 class="text-xl font-bold" x-text="currentProperty.name"></h2>
+                                <p class="text-sm text-gray-500" x-text="currentProperty.address"></p>
+                                <p class="text-xs text-gray-400 mt-1" x-text="currentProperty.type"></p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="editProperty(currentProperty)" class="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button @click="confirmDelete('property', currentProperty.id)" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <template x-if="currentProperty.notes">
+                            <p class="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded" x-text="currentProperty.notes"></p>
+                        </template>
+                        <!-- Yearly Summary -->
+                        <div class="mt-3 pt-3 border-t grid grid-cols-2 gap-3 text-center">
+                            <div>
+                                <div class="text-sm text-gray-500">Income (this year)</div>
+                                <div class="font-bold text-green-600" x-text="'₹' + getYearlyIncome(currentProperty.id).toLocaleString('en-IN')"></div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500">Expenses (this year)</div>
+                                <div class="font-bold text-red-500" x-text="'₹' + getYearlyExpenses(currentProperty.id).toLocaleString('en-IN')"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-tabs -->
+                    <div class="flex gap-1 mb-4 overflow-x-auto bg-white bg-opacity-10 rounded-xl p-1">
+                        <template x-for="tab in ['Tenants', 'Work Log', 'Leases', 'Payments', 'Documents']" :key="tab">
+                            <button @click="subTab = tab"
+                                    :class="subTab === tab ? 'tab-active' : 'text-gray-300 hover:text-white'"
+                                    class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition" x-text="tab">
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- TENANTS SUB-TAB -->
+                    <div x-show="subTab === 'Tenants'" class="space-y-3">
+                        <button @click="addTenantForProperty(currentProperty.id)" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition">+ Add Tenant</button>
+                        <template x-if="getPropertyTenants(currentProperty.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No tenants yet.</p>
+                        </template>
+                        <template x-for="t in getPropertyTenants(currentProperty.id)" :key="t.id">
+                            <div @click="openTenant(t.id)" class="bg-white rounded-xl p-4 shadow cursor-pointer hover:shadow-lg transition">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-bold" x-text="t.name"></h4>
+                                        <p class="text-sm text-gray-500" x-text="t.phone"></p>
+                                    </div>
+                                    <span :class="t.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" class="text-xs px-2 py-1 rounded-full font-medium" x-text="t.active ? 'Active' : 'Past'"></span>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-400">
+                                    <span x-text="'Moved in: ' + formatDate(t.moveInDate)"></span>
+                                    <template x-if="t.moveOutDate"><span x-text="' · Moved out: ' + formatDate(t.moveOutDate)"></span></template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- WORK LOG SUB-TAB -->
+                    <div x-show="subTab === 'Work Log'" class="space-y-3">
+                        <button @click="addWorkForProperty(currentProperty.id)" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition">+ Add Work Entry</button>
+                        <template x-if="getPropertyWork(currentProperty.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No work log entries yet.</p>
+                        </template>
+                        <template x-for="w in getPropertyWork(currentProperty.id)" :key="w.id">
+                            <div class="bg-white rounded-xl p-4 shadow">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full capitalize" x-text="w.category"></span>
+                                            <span class="text-xs text-gray-400" x-text="formatDate(w.date)"></span>
+                                        </div>
+                                        <p class="font-medium mt-1" x-text="w.description"></p>
+                                        <p class="text-sm text-gray-500" x-text="w.contractor ? 'By: ' + w.contractor : ''"></p>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-red-500" x-text="w.cost ? '₹' + w.cost.toLocaleString('en-IN') : ''"></div>
+                                        <div class="flex gap-1 mt-1">
+                                            <button @click.stop="editWork(w)" class="text-blue-500 p-1 hover:bg-blue-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            </button>
+                                            <button @click.stop="confirmDelete('work', w.id)" class="text-red-500 p-1 hover:bg-red-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Receipt Upload -->
+                                <div class="mt-2 pt-2 border-t">
+                                    <template x-if="uploads['receipt-' + w.id]">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-green-600">Receipt uploaded</span>
+                                            <button @click.stop="viewFile('receipt', w.id)" class="text-blue-500 text-xs underline">View</button>
+                                            <button @click.stop="deleteFile('receipt', w.id)" class="text-red-500 text-xs underline">Remove</button>
+                                        </div>
+                                    </template>
+                                    <template x-if="!uploads['receipt-' + w.id]">
+                                        <label class="text-xs text-gray-400 cursor-pointer hover:text-blue-500">
+                                            + Attach receipt
+                                            <input type="file" accept="image/*,.pdf" class="hidden" @change="uploadFile('receipt', w.id, $event)">
+                                        </label>
+                                    </template>
+                                </div>
+                                <template x-if="w.notes">
+                                    <p class="text-xs text-gray-400 mt-1" x-text="w.notes"></p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- LEASES SUB-TAB -->
+                    <div x-show="subTab === 'Leases'" class="space-y-3">
+                        <template x-if="getPropertyLeases(currentProperty.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No leases yet. Add a tenant first, then add a lease from their profile.</p>
+                        </template>
+                        <template x-for="l in getPropertyLeases(currentProperty.id)" :key="l.id">
+                            <div class="bg-white rounded-xl p-4 shadow">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span :class="l.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" class="text-xs px-2 py-0.5 rounded-full font-medium" x-text="l.active ? 'Active' : 'Expired'"></span>
+                                            <span class="text-xs text-gray-400" x-text="getLeaseTenantName(l.tenantId)"></span>
+                                        </div>
+                                        <p class="text-sm mt-1"><span class="text-gray-500">Period:</span> <span x-text="formatDate(l.startDate) + ' — ' + formatDate(l.endDate)"></span></p>
+                                        <p class="text-sm"><span class="text-gray-500">Rent:</span> <span class="font-bold" x-text="'₹' + l.rentAmount.toLocaleString('en-IN') + '/mo'"></span></p>
+                                        <template x-if="l.securityDeposit"><p class="text-sm"><span class="text-gray-500">Deposit:</span> <span x-text="'₹' + l.securityDeposit.toLocaleString('en-IN')"></span></p></template>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button @click.stop="editLease(l)" class="text-blue-500 p-1 hover:bg-blue-50 rounded">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+                                        <button @click.stop="confirmDelete('lease', l.id)" class="text-red-500 p-1 hover:bg-red-50 rounded">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Lease Document Upload -->
+                                <div class="mt-2 pt-2 border-t">
+                                    <template x-if="uploads['lease-' + l.id]">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-green-600">Lease document uploaded</span>
+                                            <button @click.stop="viewFile('lease', l.id)" class="text-blue-500 text-xs underline">View</button>
+                                            <button @click.stop="deleteFile('lease', l.id)" class="text-red-500 text-xs underline">Remove</button>
+                                        </div>
+                                    </template>
+                                    <template x-if="!uploads['lease-' + l.id]">
+                                        <label class="text-xs text-gray-400 cursor-pointer hover:text-blue-500">
+                                            + Attach lease document
+                                            <input type="file" accept="image/*,.pdf" class="hidden" @change="uploadFile('lease', l.id, $event)">
+                                        </label>
+                                    </template>
+                                </div>
+                                <template x-if="l.notes">
+                                    <p class="text-xs text-gray-400 mt-1" x-text="l.notes"></p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- PAYMENTS SUB-TAB -->
+                    <div x-show="subTab === 'Payments'" class="space-y-3">
+                        <button @click="addPaymentForProperty(currentProperty.id)" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition">+ Add Payment</button>
+                        <template x-if="getPropertyPayments(currentProperty.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No payments recorded yet.</p>
+                        </template>
+                        <template x-for="p in getPropertyPayments(currentProperty.id)" :key="p.id">
+                            <div class="bg-white rounded-xl p-4 shadow">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-500" x-text="getPaymentTenantName(p.tenantId)"></p>
+                                        <p class="text-sm"><span class="text-gray-400">For:</span> <span x-text="formatMonth(p.month)"></span></p>
+                                        <p class="text-sm"><span class="text-gray-400">Paid:</span> <span x-text="formatDate(p.date)"></span> <span class="text-gray-300">via</span> <span x-text="p.method"></span></p>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-green-600" x-text="'₹' + p.amount.toLocaleString('en-IN')"></div>
+                                        <div class="flex gap-1 mt-1">
+                                            <button @click.stop="editPayment(p)" class="text-blue-500 p-1 hover:bg-blue-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            </button>
+                                            <button @click.stop="confirmDelete('payment', p.id)" class="text-red-500 p-1 hover:bg-red-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <template x-if="p.notes">
+                                    <p class="text-xs text-gray-400 mt-1" x-text="p.notes"></p>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- DOCUMENTS SUB-TAB -->
+                    <div x-show="subTab === 'Documents'" class="space-y-3">
+                        <!-- Upload new document -->
+                        <div class="bg-white rounded-xl p-4 shadow">
+                            <h4 class="font-medium text-sm text-gray-700 mb-2">Upload Document</h4>
+                            <div class="space-y-2">
+                                <input type="text" x-model="propDocName" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm" placeholder="Document name (e.g., Title Deed, Insurance)">
+                                <label class="w-full flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition">
+                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    <span class="text-sm text-gray-500" x-text="propDocFile ? propDocFile.name : 'Tap to select file (photo or PDF)'"></span>
+                                    <input type="file" accept="image/*,.pdf" class="hidden" @change="propDocFile = $event.target.files[0]">
+                                </label>
+                                <button @click="uploadPropDoc()" :disabled="!propDocName || !propDocFile" :class="(!propDocName || !propDocFile) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'" class="w-full text-white py-2 rounded-lg font-medium transition text-sm">Upload</button>
+                            </div>
+                        </div>
+                        <!-- Document list -->
+                        <template x-if="getPropertyDocs(currentProperty.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No documents uploaded yet.</p>
+                        </template>
+                        <template x-for="doc in getPropertyDocs(currentProperty.id)" :key="doc.id">
+                            <div class="bg-white rounded-xl p-4 shadow">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                                        <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="font-medium text-sm truncate" x-text="doc.name"></p>
+                                            <p class="text-xs text-gray-400" x-text="formatDate(doc.uploadedAt)"></p>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-1 flex-shrink-0">
+                                        <button @click.stop="viewFile('propdoc', doc.id)" class="text-blue-500 p-1.5 hover:bg-blue-50 rounded" title="View">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        </button>
+                                        <button @click.stop="deletePropDoc(doc)" class="text-red-500 p-1.5 hover:bg-red-50 rounded" title="Delete">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== TENANT DETAIL VIEW ==================== -->
+        <div x-show="view === 'tenant-detail'" class="px-4 fade-in">
+            <template x-if="currentTenant">
+                <div>
+                    <!-- Tenant Info Card -->
+                    <div class="bg-white rounded-xl p-4 shadow mb-4">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h2 class="text-xl font-bold" x-text="currentTenant.name"></h2>
+                                <span :class="currentTenant.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" class="text-xs px-2 py-0.5 rounded-full font-medium" x-text="currentTenant.active ? 'Active' : 'Past Tenant'"></span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="editTenant(currentTenant)" class="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button @click="confirmDelete('tenant', currentTenant.id)" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-3 space-y-2 text-sm">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                                <a :href="'tel:' + currentTenant.phone" class="text-blue-600" x-text="currentTenant.phone"></a>
+                            </div>
+                            <template x-if="currentTenant.email">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                    <span x-text="currentTenant.email"></span>
+                                </div>
+                            </template>
+                            <template x-if="currentTenant.emergencyContact">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                                    <span class="text-gray-600" x-text="'Emergency: ' + currentTenant.emergencyContact"></span>
+                                </div>
+                            </template>
+                            <div class="text-gray-500">
+                                <span x-text="'Move in: ' + formatDate(currentTenant.moveInDate)"></span>
+                                <template x-if="currentTenant.moveOutDate"><span x-text="' · Move out: ' + formatDate(currentTenant.moveOutDate)"></span></template>
+                            </div>
+                            <template x-if="currentTenant.notes">
+                                <p class="text-gray-500 bg-gray-50 p-2 rounded" x-text="currentTenant.notes"></p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Tenant Leases -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-white font-semibold text-sm uppercase tracking-wide">Leases</h3>
+                            <button @click="addLeaseForTenant(currentTenant)" class="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">+ Add Lease</button>
+                        </div>
+                        <template x-if="getTenantLeases(currentTenant.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No leases yet.</p>
+                        </template>
+                        <div class="space-y-3">
+                            <template x-for="l in getTenantLeases(currentTenant.id)" :key="l.id">
+                                <div class="bg-white rounded-xl p-4 shadow">
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <span :class="l.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'" class="text-xs px-2 py-0.5 rounded-full font-medium" x-text="l.active ? 'Active' : 'Expired'"></span>
+                                            <p class="text-sm mt-1"><span class="text-gray-500">Period:</span> <span x-text="formatDate(l.startDate) + ' — ' + formatDate(l.endDate)"></span></p>
+                                            <p class="text-sm"><span class="text-gray-500">Rent:</span> <span class="font-bold" x-text="'₹' + l.rentAmount.toLocaleString('en-IN') + '/mo'"></span></p>
+                                            <template x-if="l.securityDeposit"><p class="text-sm"><span class="text-gray-500">Deposit:</span> <span x-text="'₹' + l.securityDeposit.toLocaleString('en-IN')"></span></p></template>
+                                        </div>
+                                        <div class="flex gap-1">
+                                            <button @click.stop="editLease(l)" class="text-blue-500 p-1 hover:bg-blue-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            </button>
+                                            <button @click.stop="confirmDelete('lease', l.id)" class="text-red-500 p-1 hover:bg-red-50 rounded">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- Lease Doc Upload -->
+                                    <div class="mt-2 pt-2 border-t">
+                                        <template x-if="uploads['lease-' + l.id]">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs text-green-600">Lease document uploaded</span>
+                                                <button @click.stop="viewFile('lease', l.id)" class="text-blue-500 text-xs underline">View</button>
+                                                <button @click.stop="deleteFile('lease', l.id)" class="text-red-500 text-xs underline">Remove</button>
+                                            </div>
+                                        </template>
+                                        <template x-if="!uploads['lease-' + l.id]">
+                                            <label class="text-xs text-gray-400 cursor-pointer hover:text-blue-500">
+                                                + Attach lease document
+                                                <input type="file" accept="image/*,.pdf" class="hidden" @change="uploadFile('lease', l.id, $event)">
+                                            </label>
+                                        </template>
+                                    </div>
+                                    <template x-if="l.notes">
+                                        <p class="text-xs text-gray-400 mt-1" x-text="l.notes"></p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Tenant Payments -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-white font-semibold text-sm uppercase tracking-wide">Payments</h3>
+                            <button @click="addPaymentForTenant(currentTenant)" class="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">+ Add Payment</button>
+                        </div>
+                        <template x-if="getTenantPayments(currentTenant.id).length === 0">
+                            <p class="text-gray-400 text-center py-4">No payments recorded yet.</p>
+                        </template>
+                        <div class="space-y-3">
+                            <template x-for="p in getTenantPayments(currentTenant.id)" :key="p.id">
+                                <div class="bg-white rounded-xl p-3 shadow flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm font-medium" x-text="formatMonth(p.month)"></p>
+                                        <p class="text-xs text-gray-400" x-text="formatDate(p.date) + ' via ' + p.method"></p>
+                                    </div>
+                                    <div class="text-right flex items-center gap-2">
+                                        <span class="font-bold text-green-600" x-text="'₹' + p.amount.toLocaleString('en-IN')"></span>
+                                        <button @click.stop="confirmDelete('payment', p.id)" class="text-red-400 p-1 hover:bg-red-50 rounded">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ==================== ADD/EDIT PROPERTY FORM ==================== -->
+        <div x-show="view === 'add-property'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Property' : 'Add Property'"></h3>
+                <form @submit.prevent="saveProperty()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Property Name *</label>
+                            <input type="text" x-model="form.name" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="e.g., Balaiah Garden Flat 2A">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Address *</label>
+                            <textarea x-model="form.address" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="Full address"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                            <select x-model="form.type" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                <option value="Apartment">Apartment</option>
+                                <option value="House">House</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Plot">Plot</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select x-model="form.status" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                <option value="occupied">Occupied</option>
+                                <option value="vacant">Vacant</option>
+                                <option value="maintenance">Under Maintenance</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="Any additional details..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition" x-text="editingId ? 'Save Changes' : 'Add Property'"></button>
+                        <button type="button" @click="goBack()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== ADD/EDIT TENANT FORM ==================== -->
+        <div x-show="view === 'add-tenant'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Tenant' : 'Add Tenant'"></h3>
+                <form @submit.prevent="saveTenant()">
+                    <div x-show="form.error" class="mb-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm font-medium" x-text="form.error"></div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                            <input type="text" x-model="form.name" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Tenant's full name">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                            <input type="tel" x-model="form.phone" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Phone number">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" x-model="form.email" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Email address">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Emergency Contact</label>
+                            <input type="text" x-model="form.emergencyContact" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Name - Phone">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Move-in Date *</label>
+                            <input type="text" x-model="form.moveInDate" x-init="initFP($el, 'moveInDate', $watch)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Move-out Date</label>
+                            <input type="text" x-model="form.moveOutDate" x-init="initFP($el, 'moveOutDate', $watch)" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" x-model="form.active" id="tenantActive" class="w-4 h-4 rounded">
+                            <label for="tenantActive" class="text-sm font-medium text-gray-700">Active tenant</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="Any additional details..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition" x-text="editingId ? 'Save Changes' : 'Add Tenant'"></button>
+                        <button type="button" @click="goBack()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== ADD/EDIT LEASE FORM ==================== -->
+        <div x-show="view === 'add-lease'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Lease' : 'Add Lease'"></h3>
+                <form @submit.prevent="saveLease()">
+                    <!-- Lease form error message -->
+                    <div x-show="form.error" class="mb-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm font-medium" x-text="form.error"></div>
+                    <div class="space-y-3">
+                        <!-- Show tenant name (read-only) when coming from tenant profile -->
+                        <template x-if="form.tenantLocked">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+                                <div class="w-full px-3 py-2 bg-gray-100 border rounded-lg text-gray-700 font-medium" x-text="getTenantName(form.tenantId)"></div>
+                            </div>
+                        </template>
+                        <!-- Show tenant dropdown when adding from property leases tab -->
+                        <template x-if="!form.tenantLocked">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tenant *</label>
+                                <select x-model="form.tenantId" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <option value="">Select tenant...</option>
+                                    <template x-for="t in getPropertyTenants(form.propertyId)" :key="t.id">
+                                        <option :value="t.id" x-text="t.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </template>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                            <input type="text" x-model="form.startDate" x-init="initFP($el, 'startDate', $watch)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
+                            <input type="text" x-model="form.endDate" x-init="initFP($el, 'endDate', $watch)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Rent Amount (₹/mo) *</label>
+                            <input type="number" x-model.number="form.rentAmount" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="15000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Security Deposit (₹)</label>
+                            <input type="number" x-model.number="form.securityDeposit" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="45000">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" x-model="form.active" id="leaseActive" class="w-4 h-4 rounded">
+                            <label for="leaseActive" class="text-sm font-medium text-gray-700">Active lease</label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Lease Document</label>
+                            <label class="w-full flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition">
+                                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span class="text-sm text-gray-500" x-text="form.leaseFileName || 'Tap to attach lease scan (photo or PDF)'"></span>
+                                <input type="file" accept="image/*,.pdf" class="hidden" id="leaseFileInput" @change="handleLeaseFileSelect($event)">
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="e.g., 11 month lease, renewable"></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition" x-text="editingId ? 'Save Changes' : 'Add Lease'"></button>
+                        <button type="button" @click="goBack()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== ADD/EDIT WORK LOG FORM ==================== -->
+        <div x-show="view === 'add-work'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Work Entry' : 'Add Work Entry'"></h3>
+                <form @submit.prevent="saveWork()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                            <input type="text" x-model="form.date" x-init="initFP($el, 'date', $watch)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                            <select x-model="form.category" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                <option value="plumbing">Plumbing</option>
+                                <option value="electrical">Electrical</option>
+                                <option value="painting">Painting</option>
+                                <option value="appliance">Appliance</option>
+                                <option value="structural">Structural</option>
+                                <option value="pest-control">Pest Control</option>
+                                <option value="cleaning">Cleaning</option>
+                                <option value="general">General</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                            <textarea x-model="form.description" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="What work was done?"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contractor / Done by</label>
+                            <input type="text" x-model="form.contractor" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Who did the work?">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cost (₹)</label>
+                            <input type="number" x-model.number="form.cost" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="Any additional details..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition" x-text="editingId ? 'Save Changes' : 'Add Work Entry'"></button>
+                        <button type="button" @click="goBack()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== ADD/EDIT PAYMENT FORM ==================== -->
+        <div x-show="view === 'add-payment'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Payment' : 'Add Payment'"></h3>
+                <form @submit.prevent="savePayment()">
+                    <div class="space-y-3">
+                        <!-- Show tenant name (read-only) when coming from tenant profile -->
+                        <template x-if="form.tenantLocked">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+                                <div class="w-full px-3 py-2 bg-gray-100 border rounded-lg text-gray-700 font-medium" x-text="getTenantName(form.tenantId)"></div>
+                            </div>
+                        </template>
+                        <!-- Show tenant dropdown when adding from property payments tab -->
+                        <template x-if="!form.tenantLocked">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tenant *</label>
+                                <select x-model="form.tenantId" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    <option value="">Select tenant...</option>
+                                    <template x-for="t in getPropertyTenants(form.propertyId)" :key="t.id">
+                                        <option :value="t.id" x-text="t.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                        </template>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
+                            <input type="text" x-model="form.date" x-init="initFP($el, 'date', $watch)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">For Month *</label>
+                            <input type="text" x-model="form.month" x-init="initFP($el, 'month', $watch, true)" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="Select month">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
+                            <input type="number" x-model.number="form.amount" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="15000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                            <select x-model="form.method" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                <option value="UPI">UPI</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                            <textarea x-model="form.notes" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" rows="2" placeholder="Any additional details..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition" x-text="editingId ? 'Save Changes' : 'Add Payment'"></button>
+                        <button type="button" @click="goBack()" class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS VIEW ==================== -->
+        <div x-show="view === 'settings'" class="px-4 fade-in">
+            <div class="bg-white rounded-xl p-5 shadow space-y-4">
+                <h3 class="text-lg font-bold">Settings</h3>
+
+                <button @click="downloadBackup()" class="w-full bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 transition">Download Backup</button>
+
+                <div>
+                    <label class="w-full block bg-yellow-500 text-white py-2.5 rounded-xl font-medium hover:bg-yellow-600 transition text-center cursor-pointer">
+                        Restore from Backup
+                        <input type="file" accept=".json" class="hidden" @change="restoreBackup($event)">
+                    </label>
+                </div>
+
+                <hr>
+
+                <button @click="logout()" class="w-full bg-red-500 text-white py-2.5 rounded-xl font-medium hover:bg-red-600 transition">Logout</button>
+            </div>
+
+            <!-- Email Notifications -->
+            <div class="bg-white rounded-xl p-5 shadow mt-4">
+                <h3 class="text-lg font-bold mb-3">Email Notifications</h3>
+
+                <!-- Status -->
+                <div class="space-y-2 mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full" :class="notificationStatus.smtpConfigured ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span class="text-sm" x-text="notificationStatus.smtpConfigured ? 'SMTP Connected: ' + notificationStatus.smtpHost : 'SMTP Not Configured'"></span>
+                    </div>
+                    <template x-if="notificationStatus.smtpConfigured">
+                        <div class="text-sm text-gray-500">
+                            <span class="font-medium">Schedule:</span> Daily at 9:00 AM IST
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Recipients management -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
+                    <div class="space-y-2">
+                        <template x-for="(email, idx) in notifyEmails" :key="idx">
+                            <div class="flex items-center gap-2">
+                                <input type="email" :value="email" @input="notifyEmails[idx] = $event.target.value.trim()"
+                                       class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="email@example.com">
+                                <button @click="notifyEmails.splice(idx, 1); saveNotifyEmails()" class="text-red-500 hover:text-red-700 p-1">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <input type="email" x-model="newNotifyEmail" @keydown.enter="addNotifyEmail()" placeholder="Add email address"
+                               class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <button @click="addNotifyEmail()" :disabled="!newNotifyEmail"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">Add</button>
+                    </div>
+                </div>
+
+                <!-- Test Email Button -->
+                <button @click="sendTestEmail()" :disabled="testEmailLoading || !notificationStatus.smtpConfigured"
+                        class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 active:bg-blue-800">
+                    <span x-show="!testEmailLoading">Send Test Email</span>
+                    <span x-show="testEmailLoading">Sending...</span>
+                </button>
+
+                <!-- Test result feedback -->
+                <template x-if="testEmailResult">
+                    <div class="mt-2 p-3 rounded-lg text-sm"
+                         :class="testEmailResult.startsWith('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
+                         x-text="testEmailResult.split(':').slice(1).join(':')">
+                    </div>
+                </template>
+
+                <!-- Manual trigger -->
+                <button @click="triggerNotificationCheck()" :disabled="!notificationStatus.smtpConfigured || notifCheckLoading"
+                        class="w-full mt-2 bg-gray-100 text-gray-700 py-2 rounded-xl text-sm font-medium hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 active:bg-gray-300">
+                    <span x-show="!notifCheckLoading">Run Notification Check Now</span>
+                    <span x-show="notifCheckLoading">Checking...</span>
+                </button>
+                <template x-if="notifCheckResult">
+                    <div class="mt-2 p-3 rounded-lg text-sm"
+                         :class="notifCheckResult.startsWith('success') ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'"
+                         x-text="notifCheckResult.split(':').slice(1).join(':')">
+                    </div>
+                </template>
+            </div>
+
+            <!-- Notification History (collapsible) -->
+            <div class="bg-white rounded-xl shadow mt-4">
+                <button @click="notifHistoryOpen = !notifHistoryOpen" class="w-full flex items-center justify-between p-5 text-left">
+                    <h3 class="text-lg font-bold">Notification History</h3>
+                    <svg class="w-5 h-5 text-gray-400 transition-transform" :class="notifHistoryOpen && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="notifHistoryOpen" x-collapse class="px-5 pb-5">
+                    <template x-if="notificationHistory.length === 0">
+                        <p class="text-gray-400 text-center py-4 text-sm">No notifications sent yet.</p>
+                    </template>
+                    <div class="space-y-2 max-h-64 overflow-y-auto">
+                        <template x-for="n in notificationHistory" :key="n.sentAt + n.type + (n.leaseId || n.tenantId)">
+                            <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                                     :class="n.type === 'lease-expiry' ? 'bg-blue-500' : n.type === 'missing-lease' ? 'bg-red-500' : 'bg-yellow-500'">
+                                    <span x-text="n.type === 'lease-expiry' ? 'L' : n.type === 'missing-lease' ? '!' : 'R'"></span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium" x-text="n.description"></p>
+                                    <p class="text-xs text-gray-500" x-text="n.propertyName"></p>
+                                    <p class="text-xs text-gray-400" x-text="n.sentAt"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log (collapsible) -->
+            <div class="bg-white rounded-xl shadow mt-4">
+                <button @click="activityLogOpen = !activityLogOpen" class="w-full flex items-center justify-between p-5 text-left">
+                    <h3 class="text-lg font-bold">Activity Log</h3>
+                    <svg class="w-5 h-5 text-gray-400 transition-transform" :class="activityLogOpen && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div x-show="activityLogOpen" x-collapse class="px-5 pb-5">
+                    <template x-if="activityLog.length === 0">
+                        <p class="text-gray-400 text-center py-4 text-sm">No activity recorded yet.</p>
+                    </template>
+                    <div class="space-y-2 max-h-96 overflow-y-auto">
+                        <template x-for="entry in activityLog" :key="entry.timestamp">
+                            <div class="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" :class="{'bg-blue-500': entry.action === 'login' || entry.action === 'logout', 'bg-green-500': entry.action.startsWith('add'), 'bg-yellow-500': entry.action.startsWith('edit'), 'bg-red-500': entry.action.startsWith('delete'), 'bg-gray-500': !['login','logout'].includes(entry.action) && !entry.action.startsWith('add') && !entry.action.startsWith('edit') && !entry.action.startsWith('delete')}" x-text="entry.user ? entry.user.charAt(0).toUpperCase() : '?'"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm"><span class="font-semibold" x-text="entry.user"></span> <span class="text-gray-500" x-text="entry.detail"></span></p>
+                                    <p class="text-xs text-gray-400" x-text="formatActivityTime(entry.timestamp)"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <button @click="navigateTo('dashboard')" class="w-full mt-4 bg-white bg-opacity-10 text-white py-2.5 rounded-xl font-medium hover:bg-opacity-20 transition">Back to Dashboard</button>
+        </div>
+
+        <!-- ==================== FILE VIEWER MODAL ==================== -->
+        <div x-show="viewerOpen" @click.self="viewerOpen = false" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4" style="display:none;">
+            <div class="bg-white rounded-xl overflow-hidden max-w-lg w-full max-h-screen">
+                <div class="flex items-center justify-between p-3 border-b">
+                    <span class="font-medium text-sm">Document Viewer</span>
+                    <button @click="viewerOpen = false" class="p-1 hover:bg-gray-100 rounded">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="p-2 overflow-auto" style="max-height: 80vh;">
+                    <img x-show="viewerType === 'image'" :src="viewerSrc" class="w-full rounded" alt="Document">
+                    <div x-show="viewerType === 'pdf'" class="text-center py-8">
+                        <p class="text-gray-500 mb-3">PDF Document</p>
+                        <a :href="viewerSrc" target="_blank" class="bg-blue-600 text-white px-4 py-2 rounded-lg inline-block">Open PDF</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== DELETE CONFIRMATION MODAL ==================== -->
+        <div x-show="deleteModal.open" @click.self="deleteModal.open = false" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style="display:none;">
+            <div class="bg-white rounded-xl p-5 max-w-sm w-full">
+                <h3 class="text-lg font-bold mb-2">Delete <span x-text="deleteModal.type" class="capitalize"></span>?</h3>
+                <p class="text-gray-500 text-sm mb-4">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button @click="doDelete()" class="flex-1 bg-red-500 text-white py-2 rounded-xl font-medium hover:bg-red-600 transition">Delete</button>
+                    <button @click="deleteModal.open = false" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-xl font-medium hover:bg-gray-300 transition">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+    function app() {
+        return {
+            // --- Auth ---
+            authenticated: false,
+            pin: '',
+            loginError: '',
+
+            // --- Data ---
+            properties: [],
+            tenants: [],
+            leases: [],
+            workLog: [],
+            payments: [],
+            appSettings: {},
+            uploads: {},
+
+            // --- Navigation ---
+            view: 'dashboard',
+            previousView: null,
+            subTab: 'Tenants',
+            currentProperty: null,
+            currentTenant: null,
+
+            // --- User ---
+            currentUser: '',
+            activityLog: [],
+
+            // --- Property Docs ---
+            propertyDocs: [],
+            propDocName: '',
+            propDocFile: null,
+
+            // --- Forms ---
+            form: {},
+            editingId: null,
+            formContext: {},
+
+            // --- Modals ---
+            viewerOpen: false,
+            viewerSrc: '',
+            viewerType: 'image',
+            deleteModal: { open: false, type: '', id: null },
+
+            // --- Notifications ---
+            notificationStatus: {},
+            notificationHistory: [],
+            notifyEmails: [],
+            newNotifyEmail: '',
+            testEmailLoading: false,
+            testEmailResult: '',
+            notifCheckLoading: false,
+            notifCheckResult: '',
+            notifHistoryOpen: false,
+            activityLogOpen: false,
+
+            // ==================== INIT ====================
+            async init() {
+                try {
+                    const res = await fetch('/api/auth-check');
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.currentUser = data.user || 'User';
+                        this.authenticated = true;
+                        await this.loadData();
+                    }
+                } catch {}
+            },
+
+            // ==================== FLATPICKR HELPER ====================
+            initFP(el, field, $watch, monthOnly) {
+                const opts = {
+                    dateFormat: monthOnly ? 'Y-m' : 'Y-m-d',
+                    altInput: true,
+                    altFormat: monthOnly ? 'M, Y' : 'd M, Y',
+                    disableMobile: true,
+                    allowInput: false,
+                    defaultDate: this.form[field] || null,
+                    onChange: (dates, str) => { this.form[field] = str; }
+                };
+                if (monthOnly) {
+                    opts.plugins = [new monthSelectPlugin({ shorthand: true, dateFormat: 'Y-m', altFormat: 'M, Y' })];
+                }
+                const fp = flatpickr(el, opts);
+                $watch('form.' + field, val => fp.setDate(val || null, false));
+            },
+
+            // ==================== AUTH ====================
+            async login() {
+                this.loginError = '';
+                try {
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pin: this.pin })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.currentUser = data.user || 'User';
+                        this.authenticated = true;
+                        this.pin = '';
+                        await this.loadData();
+                    } else {
+                        this.loginError = 'Incorrect PIN';
+                    }
+                } catch {
+                    this.loginError = 'Connection error';
+                }
+            },
+
+            async logout() {
+                await fetch('/api/logout', { method: 'POST' });
+                this.authenticated = false;
+                this.pin = '';
+            },
+
+            // ==================== DATA ====================
+            async loadData() {
+                try {
+                    const res = await fetch('/api/data');
+                    const data = await res.json();
+                    this.properties = data.properties || [];
+                    this.tenants = data.tenants || [];
+                    this.leases = data.leases || [];
+                    this.workLog = data.workLog || [];
+                    this.payments = data.payments || [];
+                    this.propertyDocs = data.propertyDocs || [];
+                    this.appSettings = data.appSettings || {};
+                    await this.loadUploads();
+                } catch {}
+            },
+
+            async saveData(action, detail) {
+                try {
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (action) headers['X-Action'] = action;
+                    if (detail) headers['X-Detail'] = detail;
+                    await fetch('/api/data', {
+                        method: 'PUT',
+                        headers,
+                        body: JSON.stringify({
+                            properties: this.properties,
+                            tenants: this.tenants,
+                            leases: this.leases,
+                            workLog: this.workLog,
+                            payments: this.payments,
+                            propertyDocs: this.propertyDocs,
+                            appSettings: this.appSettings
+                        })
+                    });
+                } catch {}
+            },
+
+            async loadUploads() {
+                try {
+                    const res = await fetch('/api/uploads');
+                    this.uploads = await res.json();
+                } catch { this.uploads = {}; }
+            },
+
+            async loadActivityLog() {
+                try {
+                    const res = await fetch('/api/activity');
+                    this.activityLog = await res.json();
+                } catch { this.activityLog = []; }
+            },
+
+            async loadNotificationStatus() {
+                try {
+                    const res = await fetch('/api/notifications/status');
+                    this.notificationStatus = await res.json();
+                    this.notifyEmails = this.notificationStatus.recipients || [];
+                } catch { this.notificationStatus = {}; }
+            },
+
+            async saveNotifyEmails() {
+                const emails = this.notifyEmails.filter(e => e && e.includes('@'));
+                try {
+                    const res = await fetch('/api/notify-emails', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emails }) });
+                    const data = await res.json();
+                    if (data.emails) this.notifyEmails = data.emails;
+                    this.loadNotificationStatus();
+                } catch {}
+            },
+
+            addNotifyEmail() {
+                const email = this.newNotifyEmail.trim().toLowerCase();
+                if (!email || !email.includes('@')) return;
+                if (this.notifyEmails.includes(email)) { this.newNotifyEmail = ''; return; }
+                this.notifyEmails.push(email);
+                this.newNotifyEmail = '';
+                this.saveNotifyEmails();
+            },
+
+            async loadNotificationHistory() {
+                try {
+                    const res = await fetch('/api/notifications');
+                    this.notificationHistory = await res.json();
+                } catch { this.notificationHistory = []; }
+            },
+
+            async sendTestEmail() {
+                this.testEmailLoading = true;
+                this.testEmailResult = '';
+                try {
+                    const res = await fetch('/api/test-email', { method: 'POST' });
+                    const data = await res.json();
+                    this.testEmailResult = res.ok ? ('success:' + data.message) : ('error:' + (data.error || 'Failed'));
+                } catch {
+                    this.testEmailResult = 'error:Connection error';
+                }
+                this.testEmailLoading = false;
+            },
+
+            async triggerNotificationCheck() {
+                this.notifCheckLoading = true;
+                this.notifCheckResult = '';
+                try {
+                    const res = await fetch('/api/notifications/check', { method: 'POST' });
+                    const data = await res.json();
+                    const count = data.emailsSent || 0;
+                    this.notifCheckResult = count > 0
+                        ? `success:Check complete — ${count} notification${count !== 1 ? 's' : ''} sent.`
+                        : 'info:Check complete — no notifications to send.';
+                    await this.loadNotificationHistory();
+                } catch {
+                    this.notifCheckResult = 'info:Error running notification check.';
+                }
+                this.notifCheckLoading = false;
+            },
+
+            // ==================== NAVIGATION ====================
+            navigateTo(view) {
+                this.previousView = this.view;
+                this.view = view;
+                if (view === 'settings') { this.loadActivityLog(); this.loadNotificationStatus(); this.loadNotificationHistory(); }
+                window.scrollTo(0, 0);
+            },
+
+            goBack() {
+                if (this.view === 'add-property') {
+                    this.navigateTo('dashboard');
+                } else if (this.view === 'add-tenant' || this.view === 'add-work' || this.view === 'add-lease' || this.view === 'add-payment') {
+                    if (this.currentTenant && (this.view === 'add-lease' || this.view === 'add-payment')) {
+                        this.navigateTo('tenant-detail');
+                    } else if (this.currentProperty) {
+                        this.navigateTo('property-detail');
+                    } else {
+                        this.navigateTo('dashboard');
+                    }
+                } else if (this.view === 'tenant-detail') {
+                    this.currentTenant = null;
+                    this.navigateTo('property-detail');
+                } else if (this.view === 'property-detail') {
+                    this.currentProperty = null;
+                    this.navigateTo('dashboard');
+                } else {
+                    this.navigateTo('dashboard');
+                }
+            },
+
+            openProperty(id) {
+                this.currentProperty = this.properties.find(p => p.id === id);
+                this.currentTenant = null;
+                this.subTab = 'Tenants';
+                this.navigateTo('property-detail');
+            },
+
+            openTenant(id) {
+                this.currentTenant = this.tenants.find(t => t.id === id);
+                this.navigateTo('tenant-detail');
+            },
+
+            // ==================== PROPERTY CRUD ====================
+            editProperty(prop) {
+                this.editingId = prop.id;
+                this.form = { ...prop };
+                this.navigateTo('add-property');
+            },
+
+            async saveProperty() {
+                const isEdit = !!this.editingId;
+                if (this.editingId) {
+                    const idx = this.properties.findIndex(p => p.id === this.editingId);
+                    if (idx > -1) {
+                        this.properties[idx] = {
+                            id: this.editingId,
+                            name: this.form.name,
+                            address: this.form.address,
+                            type: this.form.type || 'Apartment',
+                            status: this.form.status || 'vacant',
+                            notes: this.form.notes || '',
+                            createdAt: this.properties[idx].createdAt
+                        };
+                    }
+                    this.currentProperty = this.properties[idx];
+                } else {
+                    const newProp = {
+                        id: Date.now(),
+                        name: this.form.name,
+                        address: this.form.address,
+                        type: this.form.type || 'Apartment',
+                        status: this.form.status || 'vacant',
+                        notes: this.form.notes || '',
+                        createdAt: new Date().toISOString().slice(0, 10)
+                    };
+                    this.properties.push(newProp);
+                }
+                await this.saveData(isEdit ? 'edit-property' : 'add-property', `${isEdit ? 'Edited' : 'Added'} property: ${this.form.name}`);
+                this.form = {};
+                this.editingId = null;
+                this.goBack();
+            },
+
+            // ==================== TENANT CRUD ====================
+            addTenantForProperty(propertyId) {
+                this.editingId = null;
+                this.form = { propertyId, active: true, moveInDate: new Date().toISOString().slice(0, 10) };
+                this.formContext = { propertyId };
+                this.navigateTo('add-tenant');
+            },
+
+            editTenant(tenant) {
+                this.editingId = tenant.id;
+                this.form = { ...tenant };
+                this.navigateTo('add-tenant');
+            },
+
+            async saveTenant() {
+                this.form.error = '';
+                if (this.form.moveOutDate && this.form.moveInDate && this.form.moveOutDate <= this.form.moveInDate) {
+                    this.form.error = 'Move-out date must be after the move-in date.';
+                    window.scrollTo(0, 0);
+                    return;
+                }
+                const isEdit = !!this.editingId;
+                if (this.editingId) {
+                    const idx = this.tenants.findIndex(t => t.id === this.editingId);
+                    if (idx > -1) {
+                        this.tenants[idx] = {
+                            id: this.editingId,
+                            propertyId: this.tenants[idx].propertyId,
+                            name: this.form.name,
+                            phone: this.form.phone,
+                            email: this.form.email || '',
+                            emergencyContact: this.form.emergencyContact || '',
+                            moveInDate: this.form.moveInDate,
+                            moveOutDate: this.form.moveOutDate || null,
+                            active: this.form.active !== false,
+                            notes: this.form.notes || ''
+                        };
+                    }
+                    this.currentTenant = this.tenants[idx];
+                } else {
+                    const newTenant = {
+                        id: Date.now(),
+                        propertyId: this.form.propertyId || this.formContext.propertyId,
+                        name: this.form.name,
+                        phone: this.form.phone,
+                        email: this.form.email || '',
+                        emergencyContact: this.form.emergencyContact || '',
+                        moveInDate: this.form.moveInDate,
+                        moveOutDate: this.form.moveOutDate || null,
+                        active: this.form.active !== false,
+                        notes: this.form.notes || ''
+                    };
+                    this.tenants.push(newTenant);
+                }
+                await this.saveData(isEdit ? 'edit-tenant' : 'add-tenant', `${isEdit ? 'Edited' : 'Added'} tenant: ${this.form.name}`);
+                this.form = {};
+                this.editingId = null;
+                this.goBack();
+            },
+
+            // ==================== LEASE CRUD ====================
+            addLeaseForTenant(tenant) {
+                this.editingId = null;
+                const activeLease = this.leases.find(l => l.tenantId === tenant.id && l.active);
+                this.form = {
+                    propertyId: tenant.propertyId,
+                    tenantId: tenant.id,
+                    tenantLocked: true,
+                    active: true,
+                    startDate: '',
+                    endDate: '',
+                    rentAmount: activeLease ? activeLease.rentAmount : '',
+                    securityDeposit: activeLease ? activeLease.securityDeposit : '',
+                    notes: '',
+                    leaseFile: null,
+                    leaseFileName: '',
+                    error: ''
+                };
+                this.navigateTo('add-lease');
+            },
+
+            editLease(lease) {
+                this.editingId = lease.id;
+                this.form = { ...lease, tenantId: String(lease.tenantId), tenantLocked: true, leaseFile: null, leaseFileName: '', error: '' };
+                this.navigateTo('add-lease');
+            },
+
+            handleLeaseFileSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.form.leaseFile = file;
+                    this.form.leaseFileName = file.name;
+                }
+            },
+
+            getTenantName(tenantId) {
+                const id = Number(tenantId) || tenantId;
+                const t = this.tenants.find(t => t.id === id);
+                return t ? t.name : 'Unknown';
+            },
+
+            async saveLease() {
+                this.form.error = '';
+                // Validate dates
+                if (this.form.startDate && this.form.endDate && this.form.endDate <= this.form.startDate) {
+                    this.form.error = 'End date must be after the start date.';
+                    window.scrollTo(0, 0);
+                    return;
+                }
+                if (!this.form.tenantId) {
+                    this.form.error = 'Please select a tenant.';
+                    window.scrollTo(0, 0);
+                    return;
+                }
+                // Prevent multiple active leases for the same tenant
+                const tid = Number(this.form.tenantId) || this.form.tenantId;
+                if (this.form.active) {
+                    const existing = this.leases.find(l => l.tenantId === tid && l.active && l.id !== this.editingId);
+                    if (existing) {
+                        this.form.error = 'This tenant already has an active lease. Deactivate the existing lease first, or uncheck "Active lease" on this one.';
+                        window.scrollTo(0, 0);
+                        return;
+                    }
+                }
+                const isEdit = !!this.editingId;
+                const tenantId = Number(this.form.tenantId) || this.form.tenantId;
+                const tenantName = this.getTenantName(tenantId);
+                let leaseId;
+                if (this.editingId) {
+                    leaseId = this.editingId;
+                    const idx = this.leases.findIndex(l => l.id === this.editingId);
+                    if (idx > -1) {
+                        this.leases[idx] = {
+                            id: this.editingId,
+                            propertyId: this.form.propertyId,
+                            tenantId,
+                            startDate: this.form.startDate,
+                            endDate: this.form.endDate,
+                            rentAmount: this.form.rentAmount || 0,
+                            securityDeposit: this.form.securityDeposit || 0,
+                            active: this.form.active !== false,
+                            notes: this.form.notes || ''
+                        };
+                    }
+                } else {
+                    leaseId = Date.now();
+                    const newLease = {
+                        id: leaseId,
+                        propertyId: this.form.propertyId,
+                        tenantId,
+                        startDate: this.form.startDate,
+                        endDate: this.form.endDate,
+                        rentAmount: this.form.rentAmount || 0,
+                        securityDeposit: this.form.securityDeposit || 0,
+                        active: this.form.active !== false,
+                        notes: this.form.notes || ''
+                    };
+                    this.leases.push(newLease);
+                }
+                await this.saveData(isEdit ? 'edit-lease' : 'add-lease', `${isEdit ? 'Edited' : 'Added'} lease for ${tenantName}`);
+                // Upload lease document if one was selected
+                if (this.form.leaseFile) {
+                    const formData = new FormData();
+                    formData.append('document', this.form.leaseFile);
+                    await fetch(`/api/upload/lease/${leaseId}`, { method: 'POST', body: formData });
+                    await this.loadUploads();
+                }
+                this.form = {};
+                this.editingId = null;
+                this.goBack();
+            },
+
+            // ==================== WORK LOG CRUD ====================
+            addWorkForProperty(propertyId) {
+                this.editingId = null;
+                this.form = { propertyId, date: new Date().toISOString().slice(0, 10), category: 'general', cost: 0 };
+                this.formContext = { propertyId };
+                this.navigateTo('add-work');
+            },
+
+            editWork(work) {
+                this.editingId = work.id;
+                this.form = { ...work };
+                this.navigateTo('add-work');
+            },
+
+            async saveWork() {
+                const isEdit = !!this.editingId;
+                if (this.editingId) {
+                    const idx = this.workLog.findIndex(w => w.id === this.editingId);
+                    if (idx > -1) {
+                        this.workLog[idx] = {
+                            id: this.editingId,
+                            propertyId: this.workLog[idx].propertyId,
+                            date: this.form.date,
+                            description: this.form.description,
+                            contractor: this.form.contractor || '',
+                            cost: this.form.cost || 0,
+                            category: this.form.category || 'general',
+                            notes: this.form.notes || ''
+                        };
+                    }
+                } else {
+                    const newWork = {
+                        id: Date.now(),
+                        propertyId: this.form.propertyId || this.formContext.propertyId,
+                        date: this.form.date,
+                        description: this.form.description,
+                        contractor: this.form.contractor || '',
+                        cost: this.form.cost || 0,
+                        category: this.form.category || 'general',
+                        notes: this.form.notes || ''
+                    };
+                    this.workLog.push(newWork);
+                }
+                await this.saveData(isEdit ? 'edit-work' : 'add-work', `${isEdit ? 'Edited' : 'Added'} work: ${this.form.description}`);
+                this.form = {};
+                this.editingId = null;
+                this.goBack();
+            },
+
+            // ==================== PAYMENT CRUD ====================
+            addPaymentForProperty(propertyId) {
+                this.editingId = null;
+                const now = new Date();
+                this.form = {
+                    propertyId,
+                    tenantId: '',
+                    date: now.toISOString().slice(0, 10),
+                    month: now.toISOString().slice(0, 7),
+                    method: 'UPI',
+                    amount: ''
+                };
+                this.navigateTo('add-payment');
+            },
+
+            addPaymentForTenant(tenant) {
+                this.editingId = null;
+                const now = new Date();
+                const activeLease = this.leases.find(l => l.tenantId === tenant.id && l.active);
+                this.form = {
+                    propertyId: tenant.propertyId,
+                    tenantId: String(tenant.id),
+                    tenantLocked: true,
+                    date: now.toISOString().slice(0, 10),
+                    month: now.toISOString().slice(0, 7),
+                    method: 'UPI',
+                    amount: activeLease ? activeLease.rentAmount : ''
+                };
+                this.navigateTo('add-payment');
+            },
+
+            editPayment(payment) {
+                this.editingId = payment.id;
+                this.form = { ...payment, tenantId: String(payment.tenantId) };
+                this.navigateTo('add-payment');
+            },
+
+            async savePayment() {
+                const isEdit = !!this.editingId;
+                const tenantId = Number(this.form.tenantId) || this.form.tenantId;
+                const tenantName = this.getTenantName(tenantId);
+                if (this.editingId) {
+                    const idx = this.payments.findIndex(p => p.id === this.editingId);
+                    if (idx > -1) {
+                        this.payments[idx] = {
+                            id: this.editingId,
+                            tenantId,
+                            propertyId: this.form.propertyId,
+                            date: this.form.date,
+                            amount: this.form.amount || 0,
+                            month: this.form.month,
+                            method: this.form.method || 'UPI',
+                            notes: this.form.notes || ''
+                        };
+                    }
+                } else {
+                    const newPayment = {
+                        id: Date.now(),
+                        tenantId,
+                        propertyId: this.form.propertyId,
+                        date: this.form.date,
+                        amount: this.form.amount || 0,
+                        month: this.form.month,
+                        method: this.form.method || 'UPI',
+                        notes: this.form.notes || ''
+                    };
+                    this.payments.push(newPayment);
+                }
+                await this.saveData(isEdit ? 'edit-payment' : 'add-payment', `${isEdit ? 'Edited' : 'Added'} payment: ₹${this.form.amount} from ${tenantName}`);
+                this.form = {};
+                this.editingId = null;
+                this.goBack();
+            },
+
+            // ==================== DELETE ====================
+            confirmDelete(type, id) {
+                this.deleteModal = { open: true, type, id };
+            },
+
+            async doDelete() {
+                const { type, id } = this.deleteModal;
+                let detail = `Deleted ${type}`;
+                if (type === 'property') {
+                    const prop = this.properties.find(p => p.id === id);
+                    detail = `Deleted property: ${prop ? prop.name : id}`;
+                    this.properties = this.properties.filter(p => p.id !== id);
+                    this.tenants = this.tenants.filter(t => t.propertyId !== id);
+                    this.leases = this.leases.filter(l => l.propertyId !== id);
+                    this.workLog = this.workLog.filter(w => w.propertyId !== id);
+                    this.payments = this.payments.filter(p => p.propertyId !== id);
+                    this.currentProperty = null;
+                    this.navigateTo('dashboard');
+                } else if (type === 'tenant') {
+                    const tenant = this.tenants.find(t => t.id === id);
+                    detail = `Deleted tenant: ${tenant ? tenant.name : id}`;
+                    this.tenants = this.tenants.filter(t => t.id !== id);
+                    this.leases = this.leases.filter(l => l.tenantId !== id);
+                    this.payments = this.payments.filter(p => p.tenantId !== id);
+                    this.currentTenant = null;
+                    if (this.currentProperty) {
+                        this.navigateTo('property-detail');
+                    } else {
+                        this.navigateTo('dashboard');
+                    }
+                } else if (type === 'lease') {
+                    const lease = this.leases.find(l => l.id === id);
+                    detail = `Deleted lease for ${lease ? this.getTenantName(lease.tenantId) : id}`;
+                    this.leases = this.leases.filter(l => l.id !== id);
+                } else if (type === 'work') {
+                    const work = this.workLog.find(w => w.id === id);
+                    detail = `Deleted work: ${work ? work.description : id}`;
+                    this.workLog = this.workLog.filter(w => w.id !== id);
+                } else if (type === 'payment') {
+                    const payment = this.payments.find(p => p.id === id);
+                    detail = `Deleted payment: ₹${payment ? payment.amount : '?'}`;
+                    this.payments = this.payments.filter(p => p.id !== id);
+                }
+                await this.saveData(`delete-${type}`, detail);
+                this.deleteModal = { open: false, type: '', id: null };
+            },
+
+            // ==================== FILE UPLOADS ====================
+            async uploadFile(type, id, event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append('document', file);
+                try {
+                    await fetch(`/api/upload/${type}/${id}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    await this.loadUploads();
+                } catch {}
+                event.target.value = '';
+            },
+
+            async viewFile(type, id) {
+                const filename = this.uploads[`${type}-${id}`];
+                if (!filename) return;
+                const src = `/api/upload/${type}/${id}`;
+                if (filename.endsWith('.pdf')) {
+                    this.viewerType = 'pdf';
+                    this.viewerSrc = src;
+                    this.viewerOpen = true;
+                } else {
+                    this.viewerType = 'image';
+                    this.viewerSrc = src;
+                    this.viewerOpen = true;
+                }
+            },
+
+            async deleteFile(type, id) {
+                if (!confirm('Remove this document?')) return;
+                try {
+                    await fetch(`/api/upload/${type}/${id}`, { method: 'DELETE' });
+                    await this.loadUploads();
+                } catch {}
+            },
+
+            // ==================== PROPERTY DOCUMENTS ====================
+            getPropertyDocs(propertyId) {
+                return this.propertyDocs.filter(d => d.propertyId === propertyId).sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || ''));
+            },
+
+            async uploadPropDoc() {
+                if (!this.propDocName || !this.propDocFile || !this.currentProperty) return;
+                const docId = Date.now();
+                const formData = new FormData();
+                formData.append('document', this.propDocFile);
+                try {
+                    await fetch(`/api/upload/propdoc/${docId}`, { method: 'POST', body: formData });
+                    this.propertyDocs.push({
+                        id: docId,
+                        propertyId: this.currentProperty.id,
+                        name: this.propDocName,
+                        uploadedAt: new Date().toISOString().slice(0, 10)
+                    });
+                    await this.saveData('add-document', `Uploaded document: ${this.propDocName}`);
+                    await this.loadUploads();
+                    this.propDocName = '';
+                    this.propDocFile = null;
+                } catch {}
+            },
+
+            async deletePropDoc(doc) {
+                if (!confirm(`Delete "${doc.name}"?`)) return;
+                try {
+                    await fetch(`/api/upload/propdoc/${doc.id}`, { method: 'DELETE' });
+                    this.propertyDocs = this.propertyDocs.filter(d => d.id !== doc.id);
+                    await this.saveData('delete-document', `Deleted document: ${doc.name}`);
+                    await this.loadUploads();
+                } catch {}
+            },
+
+            // ==================== BACKUP & RESTORE ====================
+            async downloadBackup() {
+                try {
+                    const res = await fetch('/api/backup');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `tenant_logger_backup_${new Date().toISOString().slice(0, 10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } catch {}
+            },
+
+            async restoreBackup(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                if (!confirm('This will replace all current data. Are you sure?')) {
+                    event.target.value = '';
+                    return;
+                }
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    const res = await fetch('/api/restore', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    if (res.ok) {
+                        await this.loadData();
+                        this.navigateTo('dashboard');
+                        alert('Backup restored successfully!');
+                    } else {
+                        alert('Invalid backup file.');
+                    }
+                } catch {
+                    alert('Failed to restore backup.');
+                }
+                event.target.value = '';
+            },
+
+            // ==================== HELPERS ====================
+            getPropertyTenants(propertyId) {
+                return this.tenants.filter(t => t.propertyId === propertyId).sort((a, b) => b.active - a.active);
+            },
+
+            getPropertyTenantCount(propertyId) {
+                return this.tenants.filter(t => t.propertyId === propertyId && t.active).length;
+            },
+
+            getPropertyWork(propertyId) {
+                return this.workLog.filter(w => w.propertyId === propertyId).sort((a, b) => b.date.localeCompare(a.date));
+            },
+
+            getPropertyLeases(propertyId) {
+                return this.leases.filter(l => l.propertyId === propertyId).sort((a, b) => b.active - a.active || b.endDate.localeCompare(a.endDate));
+            },
+
+            getPropertyPayments(propertyId) {
+                return this.payments.filter(p => p.propertyId === propertyId).sort((a, b) => b.date.localeCompare(a.date));
+            },
+
+            getTenantLeases(tenantId) {
+                return this.leases.filter(l => l.tenantId === tenantId).sort((a, b) => b.active - a.active || b.endDate.localeCompare(a.endDate));
+            },
+
+            getTenantPayments(tenantId) {
+                return this.payments.filter(p => p.tenantId === tenantId).sort((a, b) => b.date.localeCompare(a.date));
+            },
+
+            getLeaseTenantName(tenantId) {
+                const t = this.tenants.find(t => t.id === tenantId);
+                return t ? t.name : 'Unknown';
+            },
+
+            getPaymentTenantName(tenantId) {
+                const t = this.tenants.find(t => t.id === tenantId);
+                return t ? t.name : 'Unknown';
+            },
+
+            getActiveRent(propertyId) {
+                const activeLease = this.leases.find(l => l.propertyId === propertyId && l.active);
+                return activeLease ? activeLease.rentAmount : 0;
+            },
+
+            getTotalMonthlyRent() {
+                return this.leases.filter(l => l.active).reduce((sum, l) => sum + (l.rentAmount || 0), 0);
+            },
+
+            getYearlyIncome(propertyId) {
+                const year = new Date().getFullYear().toString();
+                return this.payments
+                    .filter(p => p.propertyId === propertyId && p.month && p.month.startsWith(year))
+                    .reduce((sum, p) => sum + (p.amount || 0), 0);
+            },
+
+            getYearlyExpenses(propertyId) {
+                const year = new Date().getFullYear().toString();
+                return this.workLog
+                    .filter(w => w.propertyId === propertyId && w.date && w.date.startsWith(year))
+                    .reduce((sum, w) => sum + (w.cost || 0), 0);
+            },
+
+            getAlerts() {
+                const alerts = [];
+                const now = new Date();
+                const currentMonth = now.toISOString().slice(0, 7);
+
+                // Lease expiration warnings
+                this.leases.filter(l => l.active).forEach(l => {
+                    const end = new Date(l.endDate);
+                    const days = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+                    const tenant = this.tenants.find(t => t.id === l.tenantId);
+                    const name = tenant ? tenant.name : 'Unknown';
+                    if (days < 0) {
+                        alerts.push({ id: 'le-' + l.id, class: 'alert-expired', message: `Lease for ${name} expired ${Math.abs(days)} days ago` });
+                    } else if (days <= 30) {
+                        alerts.push({ id: 'le-' + l.id, class: 'alert-urgent', message: `Lease for ${name} expires in ${days} days` });
+                    } else if (days <= 90) {
+                        alerts.push({ id: 'le-' + l.id, class: 'alert-info', message: `Lease for ${name} expires in ${days} days` });
+                    }
+                });
+
+                // Overdue rent / missing lease
+                this.tenants.filter(t => t.active).forEach(t => {
+                    const prop = this.properties.find(p => p.id === t.propertyId);
+                    const propName = prop ? prop.name : '';
+                    const activeLease = this.leases.find(l => l.tenantId === t.id && l.active);
+                    if (!activeLease) {
+                        alerts.push({ id: 'nolease-' + t.id, class: 'alert-expired', message: `No active lease for ${t.name}${propName ? ' (' + propName + ')' : ''} — please add a lease` });
+                    } else {
+                        const paid = this.payments.some(p => p.tenantId === t.id && p.month === currentMonth);
+                        if (!paid) {
+                            alerts.push({ id: 'rent-' + t.id, class: 'alert-urgent', message: `Rent not received from ${t.name}${propName ? ' (' + propName + ')' : ''} for ${this.formatMonth(currentMonth)}` });
+                        }
+                    }
+                });
+
+                return alerts;
+            },
+
+            formatDate(dateStr) {
+                if (!dateStr) return '';
+                const d = new Date(dateStr + 'T00:00:00');
+                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            },
+
+            formatMonth(monthStr) {
+                if (!monthStr) return '';
+                const [y, m] = monthStr.split('-');
+                const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+                return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+            },
+
+            formatActivityTime(timestamp) {
+                if (!timestamp) return '';
+                const d = new Date(timestamp);
+                return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            }
+        };
+    }
+    </script>
+</body>
+</html>
